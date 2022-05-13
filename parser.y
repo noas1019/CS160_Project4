@@ -131,6 +131,7 @@ Statements : Statements Statement { $$ = $1; $$->push_back($2); }
 
 Statement : T_IDENTIFIER T_EQUAL Expression T_SEMICOLON { $$ = new AssignmentNode(new IdentifierNode($1), nullptr, $3); }
           | T_IDENTIFIER T_DOT T_IDENTIFIER T_EQUAL Expression T_SEMICOLON { $$ = new AssignmentNode(new IdentifierNode($1), new IdentifierNode($3), $5); }
+          | T_IDENTIFIER T_ARROW T_IDENTIFIER T_EQUAL Expression T_SEMICOLON { $$ = new AssignmentNode(new IdentifierNode($1), new IdentifierNode($3), $5); }
           | MethodCall T_SEMICOLON { $$ = new CallNode($1); }
           | T_IF Expression T_OPENBRACKET Blocks T_CLOSEBRACKET { $$ = new IfElseNode($2, $4, nullptr); }
           | T_IF Expression T_OPENBRACKET Blocks T_CLOSEBRACKET T_ELSE T_OPENBRACKET Blocks T_CLOSEBRACKET { $$ = new IfElseNode($2, $4, $8); }
@@ -170,6 +171,7 @@ Expression : Expression T_PLUS Expression { $$ = new PlusNode($1, $3); }
 
 MethodCall : T_IDENTIFIER T_OPENPAREN Arguments T_CLOSEPAREN { $$ = new MethodCallNode(new IdentifierNode($1), nullptr, $3); }
            | T_IDENTIFIER T_DOT T_IDENTIFIER T_OPENPAREN Arguments T_CLOSEPAREN { $$ = new MethodCallNode(new IdentifierNode($1), new IdentifierNode($3), $5); }
+           | T_IDENTIFIER T_ARROW T_IDENTIFIER T_OPENPAREN Arguments T_CLOSEPAREN { $$ = new MethodCallNode(new IdentifierNode($1), new IdentifierNode($3), $5); }
            ;
 
 Arguments  : ArgumentsPrime { $$ = $1; }
