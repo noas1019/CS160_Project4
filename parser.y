@@ -15,6 +15,7 @@
 %}
 
 %error-verbose
+%glr-parser
 
 /* WRITEME: List all your tokens here */
 %token T_IDENTIFIER T_LITERAL
@@ -31,29 +32,28 @@
 %left T_OR
 
 %type <program_ptr> Start
-%type <> ClassName
-%type <> ClassBody
+%type <class_list_ptr> ClassList
+%type <class_ptr> Class
 %type <type_ptr> Type
-%type <> Members
-%type <> MembersPrime
-%type <> Methods
-%type <> MethodsPrime
-%type <parameter_ptr> Parameters
-%type <parameter_list_ptr> ParametersPrime
-%type <> Body
+%type <declaration_list_ptr> Members
+%type <declaration_ptr> Member
+%type <method_list_ptr> Methods
+%type <method_ptr> Method
+%type <parameter_list_ptr> Parameters
+%type <methodbody_ptr> Body
 %type <returnstatement_ptr> Return
-%type <> Declarations
-%type <> DeclarationsPrime
-%type <> DeclarationsList
-%type <> StatementsList
-%type <> Statements
-%type <> Blocks
-%type <> BlocksPrime
+%type <declaration_ptr> Declaration
+%type <identifier_list_ptr> Declarations
+%type <declaration_list_ptr> DeclarationsList
+%type <statement_list_ptr> Statements
+%type <statement_ptr> Statement
+%type <statement_list_ptr> Blocks
+%type <statement_list_ptr> BlocksPrime
 %type <expression_ptr> Expression
 %type <methodcall_ptr> MethodCall
-%type <> Arguments
-%type <> ArgumentsPrime
-%type <> T_LITERAL
+%type <expression_list_ptr> Arguments
+%type <expression_list_ptr> ArgumentsPrime
+%type <base_int> T_LITERAL
 %type <identifier_ptr> T_IDENTIFIER
 
 %%
@@ -61,98 +61,88 @@
 /* WRITEME: This rule is a placeholder, since Bison requires
             at least one rule to run successfully. Replace
             this with your appropriate start rules. */
-Start : ClassName { $$ = $1; astRoot = $$; }
+Start : ClassList { $$ = new ProgramNode($1); astRoot = $$; }
       ;
 
 /* WRITME: Write your Bison grammar specification here */
-ClassName : ClassName T_IDENTIFIER T_EXTENDS T_IDENTIFIER T_OPENBRACKET ClassBody T_CLOSEBRACKET
-          | ClassName T_IDENTIFIER T_OPENBRACKET ClassBody T_CLOSEBRACKET
-          | 
-          %empty
+ClassList : ClassList Class { $$ = $1; $$->push_back($2); }
+          | Class { $$ = new std::list<ClassNode*>(); $$->push_back($1); }
           ;
 
-ClassBody : Members MembersPrime
-          | Methods MethodsPrime
-          | Members MembersPrime Methods MethodsPrime
-          |
-          %empty
-          ;
+Class : T_IDENTIFIER T_EXTENDS T_IDENTIFIER T_OPENBRACKET Member Members T_CLOSEBRACKET { $6->push_front($5); $$ = new ClassNode($1, $3, $6, nullptr); }
+      | T_IDENTIFIER T_EXTENDS T_IDENTIFIER T_OPENBRACKET Method Methods T_CLOSEBRACKET { $6->push_front($5); $$ = new ClassNode($1, $3, nullptr, $6); }
+      | T_IDENTIFIER T_EXTENDS T_IDENTIFIER T_OPENBRACKET Member Members Method Methods T_CLOSEBRACKET { $6->push_front($5); $8->push_front($7); $$ = new ClassNode($1, $3, $6, $8); }
+      | T_IDENTIFIER T_EXTENDS T_IDENTIFIER T_OPENBRACKET T_CLOSEBRACKET { $$ = new ClassNode($1, $3, nullptr, nullptr); }
+      | T_IDENTIFIER T_OPENBRACKET Member Members T_CLOSEBRACKET { $4->push_front($3); $$ = new ClassNode($1, nullptr, $4, nullptr); }
+      | T_IDENTIFIER T_OPENBRACKET Method Methods T_CLOSEBRACKET { $4->push_front($3); $$ = new ClassNode($1, nullptr, nullptr, $4); }
+      | T_IDENTIFIER T_OPENBRACKET Member Members Method Methods T_CLOSEBRACKET { $4->push_front($3); $6->push_front($5); $$ = new ClassNode($1, nullptr, $4, $6); }
+      | T_IDENTIFIER T_OPENBRACKET T_CLOSEBRACKET { $$ = new ClassNode($1, nullptr, nullptr, nullptr); }
+      ;
 
-Type : T_INTEGER
-     | T_BOOLEAN
-     | T_IDENTIFIER
-     | T_NONE
-     ;
-
-Members : Type T_IDENTIFIER T_SEMICOLON
+Members : Members Member { $$ = $1; $$->push_back($2); }
+        | %empty { $$ = new std::list<DeclarationNode*>(); }
         ;
 
-MembersPrime : MembersPrime Type T_IDENTIFIER T_SEMICOLON
-             |
-             %empty
-             ;
-
-Methods : T_IDENTIFIER T_OPENPAREN Parameters T_CLOSEPAREN T_ARROW Type T_OPENBRACKET Body T_CLOSEBRACKET
-        ;
-
-MethodsPrime : MethodsPrime T_IDENTIFIER T_OPENPAREN Parameters T_CLOSEPAREN T_ARROW Type T_OPENBRACKET Body T_CLOSEBRACKET
-             |
-             %empty
-             ;
-
-Parameters : Type T_IDENTIFIER ParametersPrime
-           | 
-           %empty
-           ;
-
-ParametersPrime : ParametersPrime T_COMMA Type T_IDENTIFIER
-                |
-                %empty
-                ;
-
-Body : Return
-     | Declarations DeclarationsList Return
-     | Statements StatementsList Return
-     | Declarations DeclarationsList Statements StatementsList Return
-     ;
-
-Return : T_RETURN Expression T_SEMICOLON
-       |
-       %empty
+Member : Type T_IDENTIFIER T_SEMICOLON { $$ = new DeclarationNode($1, new std::list<IdentifierNode*>{$2}); }
        ;
 
-Declarations : Type T_IDENTIFIER DeclarationsPrime
+Methods : Methods Method { $$ = $1; $$->push_back($2); }
+        | %empty { $$ = new std::list<MethodNode*>(); }
+        ;
+
+Method : T_IDENTIFIER T_OPENPAREN Parameters T_CLOSEPAREN T_ARROW Type T_OPENBRACKET Body T_CLOSEBRACKET { $$ = new MethodNode($1, $3, $6, $8); }
+       ;
+
+Parameters: Parameters T_COMMA Type T_IDENTIFIER { $$ = $1; $$->push_back(new ParameterNode($3, $4)); }
+          | Type T_IDENTIFIER { $$ = new std::list<ParameterNode*>(); $$->push_back(new ParameterNode($1, $2)); }
+          | %empty { $$ = new std::list<ParameterNode*>(); }
+          ;
+
+Type : T_INTEGER { $$ = new IntegerTypeNode(); }
+     | T_BOOLEAN{ $$ = new BooleanTypeNode(); }
+     | T_IDENTIFIER { $$ = new ObjectTypeNode($1); }
+     | T_NONE { $$ = new NoneNode(); }
+     ;
+
+Body : Return { $$ = new MethodBodyNode(nullptr, nullptr, $1); }
+     | Declaration DeclarationsList Return { $2->push_front($1); $$ = new MethodBodyNode($2, nullptr, $3); }
+     | Statement Statements Return { $2->push_front($1); $$ = new MethodBodyNode(nullptr, $2, $3); }
+     | Declaration DeclarationsList Statement Statements Return { $2->push_front($1); $4->push_front($3); $$ = new MethodBodyNode($2, $4, $5); }
+     ;
+
+Return : T_RETURN Expression T_SEMICOLON { $$ = new ReturnStatementNode($2); }
+       | %empty { $$ = nullptr; }
+       ;
+
+Declaration : Type Declarations T_IDENTIFIER T_SEMICOLON { $2->push_back($3); $$ = new DeclarationNode($1, $2); }
+            ;
+
+Declarations : Declarations T_IDENTIFIER T_COMMA { $$ = $1; $$->push_back($2); }
+             | %empty { $$ = new std::list<IdentifierNode*>(); }
              ;
 
-DeclarationsPrime : T_COMMA T_IDENTIFIER DeclarationsPrime
-                  | T_SEMICOLON
-                  ;
-
-DeclarationsList : DeclarationsList Declarations
-                 |
-                 %empty
+DeclarationsList : DeclarationsList Declaration { $$ = $1; $$->push_back($2); }
+                 | %empty { $$ = new std::list<DeclarationNode*>(); }
                  ;
 
-StatementsList : StatementsList Statements
-               | 
-               %empty
-               ;
+Statements : Statements Statement { $$ = $1; $$->push_back($2); }
+           | %empty { $$ = new std::list<StatementNode*>(); }
+           ;
 
-Statements : T_IDENTIFIER T_EQUAL Expression T_SEMICOLON
-           | T_IDENTIFIER T_DOT T_IDENTIFIER T_EQUAL Expression T_SEMICOLON
-           | MethodCall T_SEMICOLON
-           | T_IF Expression T_OPENBRACKET Blocks T_CLOSEBRACKET
-           | T_IF Expression T_OPENBRACKET Blocks T_CLOSEBRACKET T_ELSE T_OPENBRACKET Blocks T_CLOSEBRACKET
-           | T_WHILE Expression T_OPENBRACKET Blocks T_CLOSEBRACKET
-           | T_DO T_OPENBRACKET Blocks T_CLOSEBRACKET T_WHILE T_OPENPAREN Expression T_CLOSEPAREN T_SEMICOLON
-           | T_PRINT Expression T_SEMICOLON
+Statement : T_IDENTIFIER T_EQUAL Expression T_SEMICOLON { $$ = new AssignmentNode($1, nullptr, $3); }
+          | T_IDENTIFIER T_DOT T_IDENTIFIER T_EQUAL Expression T_SEMICOLON { $$ = new AssignmentNode($1, $3, $5); }
+          | MethodCall T_SEMICOLON { $$ = new CallNode($1); }
+          | T_IF Expression T_OPENBRACKET Blocks T_CLOSEBRACKET { $$ = new IfElseNode($2, $4, nullptr); }
+          | T_IF Expression T_OPENBRACKET Blocks T_CLOSEBRACKET T_ELSE T_OPENBRACKET Blocks T_CLOSEBRACKET { $$ = new IfElseNode($2, $4, $8); }
+          | T_WHILE Expression T_OPENBRACKET Blocks T_CLOSEBRACKET { $$ = new WhileNode($2, $4); }
+          | T_DO T_OPENBRACKET Blocks T_CLOSEBRACKET T_WHILE T_OPENPAREN Expression T_CLOSEPAREN T_SEMICOLON { $$ = new DoWhileNode($3, $7); }
+          | T_PRINT Expression T_SEMICOLON { $$ = new PrintNode($2); }
 
-Blocks : Statements BlocksPrime
+Blocks : Statement BlocksPrime { $2->push_front($1); $$ = $2; }
        ;
 
-BlocksPrime : BlocksPrime Statements
-            |
-            %empty
+BlocksPrime : BlocksPrime Statement { $$ = $1; $$->push_back($2); }
+            | %empty { $$ = new std::list<StatementNode*>(); }
             ;
 
 Expression : Expression T_PLUS Expression { $$ = new PlusNode($1, $3); }
@@ -166,29 +156,28 @@ Expression : Expression T_PLUS Expression { $$ = new PlusNode($1, $3); }
            | Expression T_OR Expression { $$ = new OrNode($1, $3); }
            | T_NOT Expression { $$ = new NotNode($2); }
            | T_MINUS Expression %prec T_UNARY { $$ = new NegationNode($2); }
-           | T_IDENTIFIER { $$ = new IntegerLiteralNode(new IntegerNode($1)); }
+           | T_IDENTIFIER { $$ = new VariableNode($1); }
            | T_IDENTIFIER T_DOT T_IDENTIFIER { $$ = new MemberAccessNode($1, $3); }
            | T_IDENTIFIER T_ARROW T_IDENTIFIER { $$ = new MemberAccessNode($1, $3); }
-           | MethodCall { $$ = new CallNode($1); }
-           | T_OPENPAREN Expression T_CLOSEPAREN
-           | T_LITERAL
+           | MethodCall { $$ = $1; }
+           | T_OPENPAREN Expression T_CLOSEPAREN { $$ = $2; }
+           | T_LITERAL { $$ = new IntegerLiteralNode(new IntegerNode($1)); }
            | T_TRUE { $$ = new BooleanLiteralNode(new IntegerNode(1)); }
            | T_FALSE { $$ = new BooleanLiteralNode(new IntegerNode(0)); }
-           | T_NEW T_IDENTIFIER
-           | T_NEW T_IDENTIFIER T_OPENPAREN Arguments T_CLOSEPAREN
+           | T_NEW T_IDENTIFIER { $$ = new NewNode($2, nullptr); }
+           | T_NEW T_IDENTIFIER T_OPENPAREN Arguments T_CLOSEPAREN { $$ = new NewNode($2, $4); }
            ;
 
-MethodCall : T_IDENTIFIER T_OPENPAREN Arguments T_CLOSEPAREN { $$ = new MethodCallNode($1, nullptr, ) }
-           | T_IDENTIFIER T_DOT T_IDENTIFIER T_OPENPAREN Arguments T_CLOSEPAREN
+MethodCall : T_IDENTIFIER T_OPENPAREN Arguments T_CLOSEPAREN { $$ = new MethodCallNode($1, nullptr, $3); }
+           | T_IDENTIFIER T_DOT T_IDENTIFIER T_OPENPAREN Arguments T_CLOSEPAREN { $$ = new MethodCallNode($1, $3, $5); }
            ;
 
-Arguments  : ArgumentsPrime
-           | 
-           %empty
+Arguments  : ArgumentsPrime { $$ = $1; }
+           | %empty { $$ = new std::list<ExpressionNode*>(); }
            ;
 
-ArgumentsPrime : ArgumentsPrime T_COMMA Expression
-               | Expression
+ArgumentsPrime : ArgumentsPrime T_COMMA Expression { $$ = $1; $$->push_back($3); }
+               | Expression { $$ = new std::list<ExpressionNode*>(); $$->push_back($1); }
                ;
 %%
 
