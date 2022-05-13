@@ -3,6 +3,8 @@
 
 %{
     #include <stdlib.h>
+    #include <stdio.h>
+    #include <string.h>
     #include <errno.h>
     #include <limits.h>
     #include "ast.hpp"
@@ -51,7 +53,7 @@
 "false"           { yylval.base_int = 0; return T_FALSE; }
 "extends"         { return T_EXTENDS; }
 "do"              { return T_DO; }
-[a-zA-Z][a-zA-Z0-9]* { yylval.base_char_ptr = yytext; return T_IDENTIFIER; }
+[a-zA-Z][a-zA-Z0-9]* {  yylval.base_char_ptr = new char(); strcpy(yylval.base_char_ptr, yytext); return T_IDENTIFIER; }
 [0-9]+\.?[0-9]+   { return T_LITERAL; }
 [1-9][0-9]*|0     { yylval.base_int = std::atoi(yytext); return T_LITERAL; }
 [\t\n]            ;
