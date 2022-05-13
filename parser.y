@@ -24,12 +24,12 @@
 %token T_UNARY
 
 /* WRITEME: Specify precedence here */
-%right T_NOT T_UNARY
-%left T_MULT T_DIV
-%left T_PLUS T_MINUS
-%left T_GREATER T_GREATEREQUAL T_EQUALS
-%left T_AND
 %left T_OR
+%left T_AND
+%left T_GREATER T_GREATEREQUAL T_EQUALS
+%left T_PLUS T_MINUS
+%left T_MULT T_DIV
+%right T_NOT T_UNARY
 
 %type <program_ptr> Start
 %type <class_list_ptr> ClassList
@@ -152,7 +152,7 @@ Expression : Expression T_PLUS Expression { $$ = new PlusNode($1, $3); }
            | Expression T_GREATER Expression { $$ = new GreaterNode($1, $3); }
            | Expression T_GREATEREQUAL Expression { $$ = new GreaterEqualNode($1, $3); }
            | Expression T_EQUALS Expression { $$ = new EqualNode($1, $3); }
-           | Expression T_AND Expression { $$ = new AndNode($1, $3); }
+           | Expression T_AND Expression %prec T_AND { $$ = new AndNode($1, $3); }
            | Expression T_OR Expression { $$ = new OrNode($1, $3); }
            | T_NOT Expression { $$ = new NotNode($2); }
            | T_MINUS Expression %prec T_UNARY { $$ = new NegationNode($2); }
